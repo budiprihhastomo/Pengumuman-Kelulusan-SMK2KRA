@@ -8,6 +8,8 @@ import { slideInRight, bounceInDown, fadeIn, slideInUp } from "react-animations"
 import Radium, { StyleRoot } from "radium"
 import InputMask from "react-input-mask"
 import Swal from "sweetalert2"
+import Axios from "axios"
+import FileDownload from "downloadjs"
 
 const animation = {
   slideInRight: {
@@ -28,67 +30,101 @@ const animation = {
   },
 }
 
+const url = process.env.ENDPOINT_SERVICE
+const loading = dataPeserta => {
+  const { namaSiswa } = dataPeserta
+  let timerInterval
+  return Swal.fire({
+    title: "Memuat Data!",
+    html: `Hai ${namaSiswa}! Data kamu sedang diproses. Tunggu <b></b> detik.`,
+    timer: 6000,
+    timerProgressBar: true,
+    onBeforeOpen: () => {
+      Swal.showLoading()
+      timerInterval = setInterval(() => {
+        const content = Swal.getContent()
+        if (content) {
+          const b = content.querySelector("b")
+          if (b) {
+            b.textContent = Swal.getTimerLeft()
+              .toString()
+              .substr(0, 1)
+          }
+        }
+      }, 1000)
+    },
+    onClose: () => {
+      clearInterval(timerInterval)
+    },
+  })
+}
+
 export default class Home extends Component {
   state = {
-    nomorUjian: "",
+    noUjian: "",
+    dataPeserta: [],
   }
 
   onHandleInput = ({ target }) => {
     return this.setState({ [target.name]: target.value })
   }
 
+  _onHandleCheck = () => {
+    const { noUjian } = this.state
+    return Axios.post(url + "/hasil", { noUjian })
+  }
+
+  _onHandleDownloadSKL = () => {
+    const { suratKeterangan } = this.state.dataPeserta
+    return Axios.get(url + "/download/" + suratKeterangan, {
+      responseType: "blob",
+    })
+      .then(({ data }) =>
+        FileDownload(data, suratKeterangan, "application/pdf")
+      )
+      .catch(() => Swal.fire("Kesalahan!", "Data Tidak Ditemukan.", "error"))
+  }
+
   onSubmitData = e => {
     e.preventDefault()
-    let nomorUjian = this.state.nomorUjian
-    nomorUjian = nomorUjian.replace(/[^0-9]/g, "")
+    let noUjian = this.state.noUjian
+    noUjian = noUjian.replace(/[^0-9]/g, "")
 
-    if (nomorUjian.length === 0)
+    if (noUjian.length === 0)
       return Swal.fire("Peringatan!", "Nomor Ujian masih kosong.", "warning")
-    if (nomorUjian.length !== 13)
+    if (noUjian.length !== 13)
       return Swal.fire("Kesalahan!", "Nomor Ujian tidak valid.", "warning")
 
-    let timerInterval
-    Swal.fire({
-      title: "Memeriksa Database!",
-      html: "Proses sedang berlangsung dan butuh waktu selama <b></b> detik.",
-      timer: 3000,
-      timerProgressBar: true,
-      onBeforeOpen: () => {
-        Swal.showLoading()
-        timerInterval = setInterval(() => {
-          const content = Swal.getContent()
-          if (content) {
-            const b = content.querySelector("b")
-            if (b) {
-              b.textContent = Swal.getTimerLeft()
-                .toString()
-                .substr(0, 1)
-            }
+    this._onHandleCheck()
+      .then(({ data }) => {
+        const dataPeserta = data.data[0]
+        this.setState({ dataPeserta })
+        loading(dataPeserta).then(result => {
+          const { namaSiswa } = dataPeserta
+          if (result.dismiss === Swal.DismissReason.timer) {
+            setTimeout(() => {
+              Swal.fire({
+                title: "Lulus Ujian",
+                text: `Selamat, ${namaSiswa} telah dinyatakan lulus ujian.`,
+                icon: "success",
+                confirmButtonText: "Download SKL",
+              }).then(res => res.value && this._onHandleDownloadSKL())
+            }, 1000)
           }
-        }, 1000)
-      },
-      onClose: () => {
-        clearInterval(timerInterval)
-      },
-    }).then(result => {
-      if (result.dismiss === Swal.DismissReason.timer) {
-        setTimeout(() => {
-          Swal.fire({
-            title: "Lulus Ujian",
-            text: "Selamat, Kamu dinyatakan lulus ujian.",
-            icon: "success",
-            confirmButtonText: "Download SKL",
-          }).then(() => {
-            return false
-          })
-        }, 2000)
-      }
-    })
+        })
+      })
+      .catch(err => {
+        if (err.response.status === 404)
+          Swal.fire("Kesalahan!", "Data Tidak Ditemukan.", "error")
+        return this.setState({ data: err.response.data })
+      })
   }
 
   render() {
-    const { nomorUjian } = this.state
-    const nomorUjianNoMask = nomorUjian.replace(/[^0-9]/g, "")
+    document.body.classList.remove("bg-purple")
+    document.body.classList.remove("banner-container")
+    const { noUjian } = this.state
+    const noUjianNoMask = noUjian.replace(/[^0-9]/g, "")
     return (
       <StyleRoot>
         <div className="main" style={{ height: "100vh", position: "relative" }}>
@@ -128,8 +164,8 @@ export default class Home extends Component {
                   >
                     <div
                       className={`input-decoration ${
-                        nomorUjianNoMask.length < 13
-                          ? nomorUjianNoMask.length !== 0
+                        noUjianNoMask.length < 13
+                          ? noUjianNoMask.length !== 0
                             ? "error"
                             : ""
                           : "success"
@@ -139,10 +175,10 @@ export default class Home extends Component {
                         <Icon className="icon" icon={baselineSearch} />
                       </div>
                       <InputMask
-                        name="nomorUjian"
+                        name="noUjian"
                         mask="9999-9999-9999-9"
                         placeholder="Masukan Nomor Ujian Kamu"
-                        value={nomorUjian}
+                        value={noUjian}
                         onChange={this.onHandleInput}
                       >
                         {inputProps => <input {...inputProps} type="text" />}
