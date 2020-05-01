@@ -1,15 +1,15 @@
 import React from "react"
 import "../styles/styles.css"
 import Home from "./home"
+import Body from "react-body-classname"
 
 const ComingSoon = props => {
   const { days, hours, minutes, seconds, completed } = props
   if (completed) {
     return <Home />
   } else {
-    document.body.classList.add("banner-container")
     return (
-      <>
+      <Body className="banner-container">
         <section id="home">
           <div className="container">
             <div className="heading text-center"></div>
@@ -30,12 +30,15 @@ const ComingSoon = props => {
             <div className="heading text-center">
               <h2>Yeay ! Pengumuman Kelulusan sebentar lagi.</h2>
               <h3>
-                <span style={{ color: "red" }}>❤</span> Stay Tuned! <p className="copyright-cs">Copyright © SMK Negeri 2 Karanganyar</p>
+                <span style={{ color: "red" }}>❤</span> Stay Tuned!{" "}
+                <p className="copyright-cs">
+                  Copyright © SMK Negeri 2 Karanganyar
+                </p>
               </h3>
             </div>
           </div>
         </section>
-      </>
+      </Body>
     )
   }
 }
